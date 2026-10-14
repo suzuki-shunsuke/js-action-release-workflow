@@ -63,7 +63,7 @@ jobs:
     # The release job runs code of the repository and its dependencies with contents: write,
     # so it must not have id-token: write.
     # node_modules is passed to the release job via an artifact.
-    uses: suzuki-shunsuke/download-npm-package-action/.github/workflows/download.yaml@main
+    uses: suzuki-shunsuke/download-npm-package-action/.github/workflows/download.yaml@ebbf371f6e38b49824a73f8c6680e2e1f83db2e8 # v0.0.1
     permissions:
       contents: read
       id-token: write
@@ -96,7 +96,7 @@ jobs:
           node-version-file: ${{inputs.node-version-file}}
 
       - name: Restore node_modules
-        uses: suzuki-shunsuke/download-npm-package-action/restore@main
+        uses: suzuki-shunsuke/download-npm-package-action/restore@ebbf371f6e38b49824a73f8c6680e2e1f83db2e8 # v0.0.1
         with:
           working_directory: ${{inputs.working_directory}}
           artifact_name: node_modules-release${{inputs.artifact_suffix}}
