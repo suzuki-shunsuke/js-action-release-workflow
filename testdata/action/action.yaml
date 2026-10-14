@@ -1,0 +1,5 @@
+name: Test action
+description: A JavaScript Action to test the release workflow
+runs:
+  using: node24
+  main: dist/index.js
