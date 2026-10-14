@@ -1,0 +1,64 @@
+---
+permissions: {}
+on:
+  workflow_call:
+    secrets:
+      TAKUMI_GUARD_BOT_ID:
+        required: false
+jobs:
+  test:
+    uses: suzuki-shunsuke/test-workflow/.github/workflows/test.yaml@51ece8dcaabff59820bfb2053c56e3cb281cf7b2 # v0.0.1
+    with:
+      aqua_version: v2.64.0
+    permissions:
+      pull-requests: read
+      contents: read
+
+  release:
+    uses: $/.github/workflows/release.yaml
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    with:
+      version: pr/${{github.event.pull_request.number}}
+      pr: ${{github.event.pull_request.number}}
+      working_directory: testdata/action
+    secrets:
+      TAKUMI_GUARD_BOT_ID: ${{secrets.TAKUMI_GUARD_BOT_ID}}
+
+  test-action:
+    timeout-minutes: 10
+    runs-on: ubuntu-26.04
+    needs: release
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the commit where the action was built
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{needs.release.outputs.sha}}
+          persist-credentials: false
+
+      - name: Check the head commit of the pull request was built
+        env:
+          SHA: ${{needs.release.outputs.sha}}
+          HEAD_SHA: ${{github.event.pull_request.head.sha}}
+        run: test "$SHA" = "$HEAD_SHA"
+
+      - name: Download dist
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: testdata/action/dist
+
+      - name: Run the built action
+        uses: ./testdata/action
+
+      # Pull requests from forks can't push branches
+      - name: Check the release branch includes dist
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          GH_TOKEN: ${{github.token}}
+          BRANCH: pr/${{github.event.pull_request.number}}
+        run: gh api "repos/$GITHUB_REPOSITORY/contents/testdata/action/dist/index.js?ref=$BRANCH" --jq .path
