@@ -40,11 +40,17 @@ jobs:
           ref: ${{needs.release.outputs.sha}}
           persist-credentials: false
 
-      - name: Check the head commit of the pull request was built
+      # The built commit is the merge commit of the pull request, one of whose parents is the head commit of the pull request.
+      # Don't compare it with github.sha, because refs/pull/<pr>/merge is recreated when the base branch is updated.
+      - name: Check the merge commit of the pull request was built
         env:
           SHA: ${{needs.release.outputs.sha}}
           HEAD_SHA: ${{github.event.pull_request.head.sha}}
-        run: test "$SHA" = "$HEAD_SHA"
+          GH_TOKEN: ${{github.token}}
+        run: |
+          parents=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA" --jq '.parents[].sha')
+          echo "$parents"
+          echo "$parents" | grep -qx "$HEAD_SHA"
 
       - name: Download dist
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
