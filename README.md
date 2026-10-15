@@ -22,7 +22,7 @@ jobs:
       id-token: write # For Takumi Guard
     with:
       version: pr/${{github.event.pull_request.number}} # pr/<pr number>, latest, or vX.Y.Z
-      pr: ${{github.event.pull_request.number}} # Optional. The head commit of the pull request is released
+      pr: ${{github.event.pull_request.number}} # Optional. The merge commit of the pull request is released
     secrets:
       TAKUMI_GUARD_BOT_ID: ${{secrets.TAKUMI_GUARD_BOT_ID}}
 ```
@@ -30,7 +30,7 @@ jobs:
 ### Inputs
 
 - `version` (Required): `pr/<pr number>`, `latest`, or `vX.Y.Z`
-- `pr`: Pull Request Number. If this is set, the head commit of the pull request is released. Otherwise, the default ref of actions/checkout is released
+- `pr`: Pull Request Number. If this is set, the merge commit of the pull request (`refs/pull/<pr>/merge`) is released, so the release and the tests of the action use the code merged into the base branch. It exists while the pull request is open and has no conflict. Otherwise, the default ref of actions/checkout is released
 - `is_comment`: If this is true, a comment is posted to the pull request. The default is false
 - `files`: Files to be committed in addition to dist
 - `working_directory`: The directory where package.json and package-lock.json exist. The default is `.`

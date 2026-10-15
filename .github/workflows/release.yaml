@@ -10,7 +10,8 @@ on:
       pr:
         description: |
           Pull Request Number.
-          If this is set, the head commit of the pull request is released.
+          If this is set, the merge commit of the pull request (refs/pull/<pr>/merge) is released,
+          which is the commit that the pull request is merged into the base branch.
         required: false
         type: string
       is_comment:
@@ -68,8 +69,9 @@ jobs:
       contents: read
       id-token: write
     with:
-      # Release the head commit of the pull request instead of the merge commit
-      ref: ${{inputs.pr != '' && format('refs/pull/{0}/head', inputs.pr) || ''}}
+      # Release the merge commit of the pull request, so the release and the tests of the action use the code merged into the base branch.
+      # refs/pull/<pr>/merge exists while the pull request is open and has no conflict.
+      ref: ${{inputs.pr != '' && format('refs/pull/{0}/merge', inputs.pr) || ''}}
       working_directory: ${{inputs.working_directory}}
       node-version-file: ${{inputs.node-version-file}}
       artifact_name: node_modules-release${{inputs.artifact_suffix}}
