@@ -48,13 +48,27 @@ on:
         required: false
         type: string
         default: ""
+      npm_artifact_name:
+        description: |
+          The name of the artifact created by suzuki-shunsuke/download-npm-package-action in the caller workflow.
+          If this is set, the npm job is skipped and the artifact is used instead,
+          so the caller can share the artifact with other jobs such as suzuki-shunsuke/js-action-test-workflow.
+          Set ref to the commit where the artifact was created (the output sha of download-npm-package-action's reusable workflow).
+        required: false
+        type: string
+      ref:
+        description: |
+          The git ref to build and release. This takes precedence over pr.
+          If npm_artifact_name is set, set this to the commit where the artifact was created.
+        required: false
+        type: string
     secrets:
       TAKUMI_GUARD_BOT_ID:
         required: false
     outputs:
       sha:
         description: The commit SHA where the action was built
-        value: ${{jobs.npm.outputs.sha}}
+        value: ${{jobs.release.outputs.sha}}
 
 permissions: {}
 
@@ -64,6 +78,8 @@ jobs:
     # The release job runs code of the repository and its dependencies with contents: write,
     # so it must not have id-token: write.
     # node_modules is passed to the release job via an artifact.
+    # Skipped if the caller passes its own artifact via npm_artifact_name.
+    if: inputs.npm_artifact_name == ''
     uses: suzuki-shunsuke/download-npm-package-action/.github/workflows/download.yaml@ebbf371f6e38b49824a73f8c6680e2e1f83db2e8 # v0.0.1
     permissions:
       contents: read
@@ -71,7 +87,7 @@ jobs:
     with:
       # Release the merge commit of the pull request, so the release and the tests of the action use the code merged into the base branch.
       # refs/pull/<pr>/merge exists while the pull request is open and has no conflict.
-      ref: ${{inputs.pr != '' && format('refs/pull/{0}/merge', inputs.pr) || ''}}
+      ref: ${{inputs.ref || (inputs.pr != '' && format('refs/pull/{0}/merge', inputs.pr)) || ''}}
       working_directory: ${{inputs.working_directory}}
       node-version-file: ${{inputs.node-version-file}}
       artifact_name: node_modules-release${{inputs.artifact_suffix}}
@@ -82,15 +98,25 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-26.04
     needs: npm
+    # Run even if the npm job is skipped because npm_artifact_name is set
+    if: |
+      !cancelled() && (needs.npm.result == 'success' || needs.npm.result == 'skipped')
     permissions:
       contents: write # To push the release branch
       pull-requests: write # To post comments to pull requests
+    outputs:
+      sha: ${{steps.sha.outputs.value}}
     steps:
       - name: Checkout the commit where npm packages were installed
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{needs.npm.outputs.sha}}
+          # If the npm job is skipped, the caller's ref (or the merge commit of the pull request) is used
+          ref: ${{needs.npm.outputs.sha || inputs.ref || (inputs.pr != '' && format('refs/pull/{0}/merge', inputs.pr)) || ''}}
           persist-credentials: false
+
+      - name: Get the commit SHA
+        id: sha
+        run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -101,7 +127,7 @@ jobs:
         uses: suzuki-shunsuke/download-npm-package-action/restore@ebbf371f6e38b49824a73f8c6680e2e1f83db2e8 # v0.0.1
         with:
           working_directory: ${{inputs.working_directory}}
-          artifact_name: node_modules-release${{inputs.artifact_suffix}}
+          artifact_name: ${{inputs.npm_artifact_name || format('node_modules-release{0}', inputs.artifact_suffix)}}
 
       - name: Install aqua
         if: inputs.aqua_version != ''
