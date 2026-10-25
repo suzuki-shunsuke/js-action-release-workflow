@@ -71,7 +71,7 @@ jobs:
 
   # Share node_modules installed in the caller workflow
   npm:
-    uses: suzuki-shunsuke/download-npm-package-action/.github/workflows/download.yaml@7b0c4cea0dbf5a58ec2b35c3c6432584369c1bfe # v0.0.2
+    uses: suzuki-shunsuke/download-npm-package-action/.github/workflows/download.yaml@356be7a431f3fe7ff4a3a61e3dedb3a571f954e7 # v0.0.3
     permissions:
       contents: read
       id-token: write

@@ -80,7 +80,7 @@ jobs:
     # node_modules is passed to the release job via an artifact.
     # Skipped if the caller passes its own artifact via npm_artifact_name.
     if: inputs.npm_artifact_name == ''
-    uses: suzuki-shunsuke/download-npm-package-action/.github/workflows/download.yaml@7b0c4cea0dbf5a58ec2b35c3c6432584369c1bfe # v0.0.2
+    uses: suzuki-shunsuke/download-npm-package-action/.github/workflows/download.yaml@356be7a431f3fe7ff4a3a61e3dedb3a571f954e7 # v0.0.3
     permissions:
       contents: read
       id-token: write
@@ -124,7 +124,7 @@ jobs:
           node-version-file: ${{inputs.node-version-file}}
 
       - name: Restore node_modules
-        uses: suzuki-shunsuke/download-npm-package-action/restore@7b0c4cea0dbf5a58ec2b35c3c6432584369c1bfe # v0.0.2
+        uses: suzuki-shunsuke/download-npm-package-action/restore@356be7a431f3fe7ff4a3a61e3dedb3a571f954e7 # v0.0.3
         with:
           working_directory: ${{inputs.working_directory}}
           artifact_name: ${{inputs.npm_artifact_name || format('node_modules-release{0}', inputs.artifact_suffix)}}
