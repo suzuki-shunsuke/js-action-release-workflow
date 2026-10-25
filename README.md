@@ -5,8 +5,13 @@
 GitHub Actions Reusable Workflow for releasing JavaScript Actions
 
 1. Install npm packages through [Takumi Guard](https://github.com/flatt-security/setup-takumi-guard-npm) with [download-npm-package-action](https://github.com/suzuki-shunsuke/download-npm-package-action) in a job with `id-token: write`
-2. Restore `node_modules`, build the action, and release it with [release-js-action](https://github.com/suzuki-shunsuke/release-js-action) in a job without `id-token: write`
-3. Upload `dist` as an artifact, so callers can test the built action
+2. Restore `node_modules` and build the action in a job with only `contents: read`, and upload the built files as an artifact
+3. Release the built files with [release-js-action](https://github.com/suzuki-shunsuke/release-js-action) in a job with `contents: write`, which doesn't run code of the repository and its dependencies
+4. Upload `dist` as an artifact, so callers can test the built action
+
+Building the action runs code of the repository and its dependencies, such as install scripts and the build command.
+So the build job doesn't have `contents: write` and `pull-requests: write`, and the release job doesn't build the action.
+The release job copies only files committed by release-js-action (`**/dist/**` and `files`) from the artifact, so that a compromised build job can't put other files such as `.git/config` into the workspace.
 
 Pull requests from forks can't push branches, so the action is built but not released.
 
