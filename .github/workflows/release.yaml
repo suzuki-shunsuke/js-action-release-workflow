@@ -68,7 +68,7 @@ on:
     outputs:
       sha:
         description: The commit SHA where the action was built
-        value: ${{jobs.release.outputs.sha}}
+        value: ${{jobs.build.outputs.sha}}
 
 permissions: {}
 
@@ -94,7 +94,11 @@ jobs:
     secrets:
       TAKUMI_GUARD_BOT_ID: ${{secrets.TAKUMI_GUARD_BOT_ID}}
 
-  release:
+  # Build the action in a job without contents: write and pull-requests: write.
+  # Building the action runs code of the repository and its dependencies (install scripts, the build command, and so on).
+  # If it ran in the job pushing the release branch, compromised dependencies could abuse the write permission,
+  # e.g. in a pull request updating dependencies before it is reviewed.
+  build:
     timeout-minutes: 30
     runs-on: ubuntu-26.04
     needs: npm
@@ -102,8 +106,7 @@ jobs:
     if: |
       !cancelled() && (needs.npm.result == 'success' || needs.npm.result == 'skipped')
     permissions:
-      contents: write # To push the release branch
-      pull-requests: write # To post comments to pull requests
+      contents: read
     outputs:
       sha: ${{steps.sha.outputs.value}}
     steps:
@@ -131,7 +134,7 @@ jobs:
 
       - name: Install aqua
         if: inputs.aqua_version != ''
-        uses: aquaproj/aqua-installer@611554c6f0137ba41c8dd15aca8bee82504ea461 # v4.1.1
+        uses: aquaproj/aqua-installer@82d0e83878a8657c4a6f2ff1755d3bfbfc67f329 # v4.1.0
         with:
           aqua_version: ${{inputs.aqua_version}}
 
@@ -142,6 +145,98 @@ jobs:
           AQUA_GITHUB_TOKEN: ${{github.token}}
         run: bash -c "$BUILD_COMMAND"
 
+      # Collect files committed by release-js-action: dist directories and inputs.files.
+      # release-js-action commits **/dist/** except node_modules.
+      - name: Collect files to be released
+        env:
+          FILES: ${{inputs.files}}
+        run: |
+          stage=$RUNNER_TEMP/js-action-release-workflow/release-files
+          mkdir -p "$stage"
+          find . \( -name node_modules -o -name .git \) -prune -o -type f -path '*/dist/*' -print0 |
+            xargs -0 -r cp --parents -t "$stage"
+          while IFS= read -r file; do
+            if [ -n "$file" ] && [ -f "$file" ]; then
+              cp --parents "$file" "$stage"
+            fi
+          done <<< "$FILES"
+
+      - name: Upload files to be released
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-files${{inputs.artifact_suffix}}
+          path: ${{runner.temp}}/js-action-release-workflow/release-files
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+      # Callers can test the built action by downloading this artifact
+      - name: Upload dist
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist${{inputs.artifact_suffix}}
+          path: ${{inputs.working_directory}}/dist
+          retention-days: 1
+
+  # Push the release branch.
+  # This job must not run code of the repository and its dependencies because it has contents: write.
+  release:
+    timeout-minutes: 30
+    runs-on: ubuntu-26.04
+    needs: build
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    permissions:
+      contents: write # To push the release branch
+      pull-requests: write # To post comments to pull requests
+    steps:
+      - name: Checkout the commit where the action was built
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{needs.build.outputs.sha}}
+          persist-credentials: false
+
+      - name: Download files to be released
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-files${{inputs.artifact_suffix}}
+          path: ${{runner.temp}}/js-action-release-workflow/release-files
+
+      # The artifact is created by the build job, which runs code of dependencies.
+      # Don't extract it into the workspace as is. Copy only files that release-js-action commits,
+      # so that a compromised build job can't put files such as .git/config into the workspace.
+      - name: Copy files to be released
+        env:
+          FILES: ${{inputs.files}}
+        run: |
+          stage=$RUNNER_TEMP/js-action-release-workflow/release-files
+          cd "$stage"
+          find . -type f -print0 | while IFS= read -r -d '' file; do
+            file=${file#./}
+            case "/$file" in
+              */.git/* | */node_modules/* | */../*)
+                echo "::error::Unexpected file in the artifact: $file"
+                exit 1
+                ;;
+            esac
+            allowed=false
+            case "/$file" in
+              */dist/*) allowed=true ;;
+            esac
+            if [ "$allowed" = false ]; then
+              while IFS= read -r f; do
+                if [ -n "$f" ] && [ "${f#./}" = "$file" ]; then
+                  allowed=true
+                fi
+              done <<< "$FILES"
+            fi
+            if [ "$allowed" = false ]; then
+              echo "::error::Unexpected file in the artifact: $file"
+              exit 1
+            fi
+            mkdir -p "$GITHUB_WORKSPACE/$(dirname "$file")"
+            cp "$file" "$GITHUB_WORKSPACE/$file"
+          done
+
       # Pull requests from forks can't push branches, so only build them
       - name: Release the action
         if: ${{ !github.event.pull_request.head.repo.fork }}
@@ -151,11 +246,3 @@ jobs:
           pr: ${{inputs.pr}}
           is_comment: ${{inputs.is_comment}}
           files: ${{inputs.files}}
-
-      # Callers can test the built action by downloading this artifact
-      - name: Upload dist
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: dist${{inputs.artifact_suffix}}
-          path: ${{inputs.working_directory}}/dist
-          retention-days: 1
