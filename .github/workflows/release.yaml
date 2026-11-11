@@ -143,7 +143,8 @@ jobs:
         env:
           BUILD_COMMAND: ${{inputs.build_command}}
           AQUA_GITHUB_TOKEN: ${{github.token}}
-        run: bash -c "$BUILD_COMMAND"
+        # Fail on the first failing command. Otherwise only the exit code of the last command is checked.
+        run: bash -e -o pipefail -c "$BUILD_COMMAND"
 
       # Collect files committed by release-js-action: dist directories and inputs.files.
       # release-js-action commits **/dist/** except node_modules.
