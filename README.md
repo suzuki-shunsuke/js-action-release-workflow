@@ -40,7 +40,7 @@ jobs:
 - `files`: Files to be committed in addition to dist
 - `working_directory`: The directory where package.json and package-lock.json exist. The default is `.`
 - `node-version-file`: The default is `.node-version`
-- `build_command`: The default is `npm run build`
+- `build_command`: The default is `npm run build`. It is run by `bash -e -o pipefail -c`, so the build fails if any command fails
 - `aqua_version`: If this is set, aqua is installed before building the action
 - `npm_artifact_name`: The name of the artifact created by [download-npm-package-action](https://github.com/suzuki-shunsuke/download-npm-package-action) in the caller workflow. See below
 - `ref`: The git ref to build and release. This takes precedence over `pr`. If `npm_artifact_name` is set, set this to the commit where the artifact was created
